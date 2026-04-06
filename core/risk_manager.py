@@ -397,12 +397,12 @@ class RiskManager:
                     cantidad_original=cantidad,
                     cantidad_ajustada=adjusted,
                     sizing_multiplier=multiplier,
-                    riesgo_macro=context.riesgo_macro,
+                    riesgo_macro=context.get("riesgo_macro"),
                 )
             return adjusted
 
         except Exception:
-            logger.warning("error_ajustando_sizing_por_contexto")
+            logger.warning("error_ajustando_sizing_por_contexto", exc_info=True)
             return cantidad
 
     def _alertar_rechazo(self, order: OrderIntent, motivo: str) -> None:

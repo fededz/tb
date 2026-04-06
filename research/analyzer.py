@@ -69,7 +69,7 @@ Reglas para sizing_multiplier:
 - riesgo_macro "medio" -> 0.75
 - riesgo_macro "bajo" -> 1.0
 
-Noticias a analizar:
+{datos_mercado}Noticias a analizar:
 {noticias}"""
 
 
@@ -201,8 +201,12 @@ class ResearchAnalyzer:
                 return dict(account)
         return None
 
-    def _format_noticias(self, noticias: list[dict]) -> str:
+    def _format_noticias(self, noticias: list[dict]) -> tuple[str, str]:
         """Formatea las noticias en texto plano para el prompt.
+
+        Separa los items de datos estructurados (source='datos_estructurados')
+        de las noticias regulares. Los datos estructurados se devuelven como
+        un bloque aparte para insertarlos antes de las noticias en el prompt.
 
         Si una noticia tiene un campo 'source' que coincide con un username
         en sources.json, se anota con el peso y afinidad de esa fuente.
@@ -211,10 +215,22 @@ class ResearchAnalyzer:
             noticias: Lista de dicts con source, title, content, timestamp.
 
         Returns:
-            Texto formateado con las noticias numeradas y anotadas.
+            Tupla (datos_mercado, noticias_text):
+            - datos_mercado: Texto con datos estructurados, o string vacio.
+            - noticias_text: Texto formateado con las noticias numeradas.
         """
         if not noticias:
-            return "(No hay noticias recientes disponibles)"
+            return "", "(No hay noticias recientes disponibles)"
+
+        # Separar datos estructurados de noticias regulares
+        datos_mercado = ""
+        noticias_regulares: list[dict] = []
+
+        for item in noticias:
+            if item.get("source") == "datos_estructurados":
+                datos_mercado = item.get("content", "")
+            else:
+                noticias_regulares.append(item)
 
         # Construir lookup de fuentes por username (case-insensitive)
         sources = self._load_sources()
@@ -225,7 +241,7 @@ class ResearchAnalyzer:
                 source_lookup[uname.lower()] = account
 
         lines: list[str] = []
-        for i, noticia in enumerate(noticias[:30], 1):  # Limitar a 30 noticias
+        for i, noticia in enumerate(noticias_regulares[:30], 1):  # Limitar a 30
             source = noticia.get("source", "desconocido")
             title = noticia.get("title", "Sin titulo")
             content = noticia.get("content", "")[:500]
@@ -249,7 +265,9 @@ class ResearchAnalyzer:
                 f"   Titulo: {title}\n"
                 f"   Contenido: {content}\n"
             )
-        return "\n".join(lines)
+
+        noticias_text = "\n".join(lines) if lines else "(No hay noticias recientes disponibles)"
+        return datos_mercado, noticias_text
 
     def _parse_response(self, response_text: str) -> dict:
         """Parsea la respuesta del LLM como JSON.
@@ -305,8 +323,18 @@ class ResearchAnalyzer:
             context["timestamp"] = now
             return context
 
-        noticias_text = self._format_noticias(noticias)
-        user_prompt = USER_PROMPT_TEMPLATE.format(noticias=noticias_text)
+        datos_mercado, noticias_text = self._format_noticias(noticias)
+        # Si hay datos estructurados, insertarlos como seccion DATOS DE MERCADO
+        datos_mercado_section = ""
+        if datos_mercado:
+            datos_mercado_section = (
+                "DATOS DE MERCADO (numeros duros, usar como referencia):\n"
+                f"{datos_mercado}\n\n"
+            )
+        user_prompt = USER_PROMPT_TEMPLATE.format(
+            datos_mercado=datos_mercado_section,
+            noticias=noticias_text,
+        )
         source_context = self._build_source_context()
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(source_context=source_context)
 

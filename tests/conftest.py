@@ -43,10 +43,10 @@ def mock_ppi() -> MagicMock:
 def mock_alertas() -> MagicMock:
     """Alertas mock with async methods."""
     alertas = MagicMock()
-    alertas.send = AsyncMock()
-    alertas.orden_ejecutada = AsyncMock()
-    alertas.orden_rechazada = AsyncMock()
-    alertas.signal_generada = AsyncMock()
+    alertas.send = MagicMock()
+    alertas.orden_ejecutada = MagicMock()
+    alertas.orden_rechazada = MagicMock()
+    alertas.signal_generada = MagicMock()
     return alertas
 
 

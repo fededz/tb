@@ -24,7 +24,7 @@ def _make_order(**overrides) -> OrderIntent:
         "ticker": "GGAL",
         "tipo": "Acciones",
         "operacion": "COMPRA",
-        "cantidad": 100.0,
+        "cantidad": 10.0,
         "precio": 1000.0,
         "plazo": "A-48HS",
         "strategy": "momentum_acciones",

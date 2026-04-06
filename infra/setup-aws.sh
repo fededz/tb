@@ -197,7 +197,7 @@ EC2_SG_ID=$($AWS ec2 describe-security-groups \
 if [[ -z "$EC2_SG_ID" || "$EC2_SG_ID" == "None" ]]; then
     EC2_SG_ID=$($AWS ec2 create-security-group \
         --group-name trading-bot-ec2-sg \
-        --description "EC2 security group for Trading Bot — SSH and dashboard" \
+        --description "EC2 security group for Trading Bot - SSH and dashboard" \
         --vpc-id "$VPC_ID" \
         --query "GroupId")
     ok "Created EC2 security group: ${EC2_SG_ID}"
@@ -233,7 +233,7 @@ RDS_SG_ID=$($AWS ec2 describe-security-groups \
 if [[ -z "$RDS_SG_ID" || "$RDS_SG_ID" == "None" ]]; then
     RDS_SG_ID=$($AWS ec2 create-security-group \
         --group-name trading-bot-rds-sg \
-        --description "RDS security group for Trading Bot — PostgreSQL from EC2 only" \
+        --description "RDS security group for Trading Bot - PostgreSQL from EC2 only" \
         --vpc-id "$VPC_ID" \
         --query "GroupId")
     ok "Created RDS security group: ${RDS_SG_ID}"
@@ -302,7 +302,7 @@ if [[ -z "$EXISTING_RDS" || "$EXISTING_RDS" == "None" ]]; then
         --db-subnet-group-name "$SUBNET_GROUP_NAME" \
         --no-multi-az \
         --no-publicly-accessible \
-        --backup-retention-period 7 \
+        --backup-retention-period 1 \
         --storage-encrypted \
         --tags "Key=Name,Value=trading-bot-rds" \
         > /dev/null
