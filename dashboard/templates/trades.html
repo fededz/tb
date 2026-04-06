@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Trades{% endblock %}
+
+{% block content %}
+<div x-data="tradesPage()" x-init="init()">
+    <h2 class="text-2xl font-bold text-white mb-6">Historial de Trades</h2>
+
+    <!-- Filters -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Estrategia</label>
+                <select x-model="filters.estrategia"
+                        class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Todas</option>
+                    <option value="carry_futuros">Carry Futuros</option>
+                    <option value="carry_bonos">Carry Bonos</option>
+                    <option value="trend_following">Trend Following</option>
+                    <option value="momentum_acciones">Momentum Acciones</option>
+                    <option value="pares">Pares</option>
+                    <option value="mean_reversion">Mean Reversion</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Ticker</label>
+                <input type="text" x-model="filters.ticker" placeholder="Ej: GGAL"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Desde</label>
+                <input type="date" x-model="filters.desde"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Hasta</label>
+                <input type="date" x-model="filters.hasta"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Estado</label>
+                <select x-model="filters.status"
+                        class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Todos</option>
+                    <option value="EXECUTED">Ejecutada</option>
+                    <option value="PENDING">Pendiente</option>
+                    <option value="CANCELLED">Cancelada</option>
+                    <option value="REJECTED">Rechazada</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button @click="load()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                Buscar
+            </button>
+            <button @click="resetFilters()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm transition-colors">
+                Limpiar
+            </button>
+            <button @click="exportCSV()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm transition-colors ml-auto">
+                Exportar CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+            <p class="text-xs text-slate-400">Total Trades</p>
+            <p class="text-xl font-bold text-white" x-text="ordenes.length"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+            <p class="text-xs text-slate-400">Ejecutadas</p>
+            <p class="text-xl font-bold text-emerald-400" x-text="metrics.executed"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+            <p class="text-xs text-slate-400">Rechazadas</p>
+            <p class="text-xl font-bold text-red-400" x-text="metrics.rejected"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+            <p class="text-xs text-slate-400">Win Rate</p>
+            <p class="text-xl font-bold text-white" x-text="metrics.winRate + '%'"></p>
+        </div>
+    </div>
+
+    <!-- Results table -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-400 border-b border-slate-700">
+                        <th class="pb-3 pr-3">ID</th>
+                        <th class="pb-3 pr-3">Fecha</th>
+                        <th class="pb-3 pr-3">Estrategia</th>
+                        <th class="pb-3 pr-3">Ticker</th>
+                        <th class="pb-3 pr-3">Tipo</th>
+                        <th class="pb-3 pr-3">Op</th>
+                        <th class="pb-3 pr-3 text-right">Cantidad</th>
+                        <th class="pb-3 pr-3 text-right">Precio</th>
+                        <th class="pb-3 pr-3">Plazo</th>
+                        <th class="pb-3 pr-3">Estado</th>
+                        <th class="pb-3">Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="o in ordenes" :key="o.id">
+                        <tr class="border-b border-slate-700/50 hover:bg-slate-750">
+                            <td class="py-2 pr-3 text-xs text-slate-500" x-text="o.id"></td>
+                            <td class="py-2 pr-3 text-xs text-slate-400" x-text="formatTime(o.created_at)"></td>
+                            <td class="py-2 pr-3" x-text="o.strategy"></td>
+                            <td class="py-2 pr-3 font-mono text-white" x-text="o.ticker"></td>
+                            <td class="py-2 pr-3 text-slate-400 text-xs" x-text="o.tipo"></td>
+                            <td class="py-2 pr-3">
+                                <span :class="o.operacion === 'COMPRA' ? 'text-emerald-400' : 'text-red-400'" x-text="o.operacion"></span>
+                            </td>
+                            <td class="py-2 pr-3 text-right font-mono" x-text="o.cantidad"></td>
+                            <td class="py-2 pr-3 text-right font-mono" x-text="o.precio ? formatNumber(o.precio) : 'MKT'"></td>
+                            <td class="py-2 pr-3 text-xs text-slate-500" x-text="o.plazo"></td>
+                            <td class="py-2 pr-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                      :class="o.status === 'EXECUTED' ? 'bg-emerald-900 text-emerald-300' : o.status === 'PENDING' ? 'bg-blue-900 text-blue-300' : o.status === 'CANCELLED' ? 'bg-slate-700 text-slate-400' : 'bg-red-900 text-red-300'"
+                                      x-text="o.status"></span>
+                            </td>
+                            <td class="py-2 text-xs text-red-400 max-w-[200px] truncate" x-text="o.error_msg || ''"></td>
+                        </tr>
+                    </template>
+                    <tr x-show="ordenes.length === 0">
+                        <td colspan="11" class="py-8 text-center text-slate-500">Sin resultados</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function tradesPage() {
+    return {
+        filters: { estrategia: '', ticker: '', desde: '', hasta: '', status: '' },
+        ordenes: [],
+        metrics: { executed: 0, rejected: 0, winRate: 0 },
+
+        async init() {
+            await this.load();
+        },
+
+        async load() {
+            try {
+                const params = new URLSearchParams();
+                if (this.filters.estrategia) params.set('estrategia', this.filters.estrategia);
+                if (this.filters.ticker) params.set('ticker', this.filters.ticker.toUpperCase());
+                if (this.filters.desde) params.set('desde', this.filters.desde);
+                if (this.filters.hasta) params.set('hasta', this.filters.hasta);
+                if (this.filters.status) params.set('status', this.filters.status);
+
+                const url = '/api/ordenes' + (params.toString() ? '?' + params.toString() : '');
+                this.ordenes = await fetchAPI(url);
+                this.calcMetrics();
+            } catch (e) {
+                console.error('Error loading trades:', e);
+            }
+        },
+
+        calcMetrics() {
+            this.metrics.executed = this.ordenes.filter(o => o.status === 'EXECUTED').length;
+            this.metrics.rejected = this.ordenes.filter(o => o.status === 'REJECTED').length;
+            const total = this.metrics.executed + this.metrics.rejected;
+            this.metrics.winRate = total > 0 ? Math.round((this.metrics.executed / total) * 100) : 0;
+        },
+
+        resetFilters() {
+            this.filters = { estrategia: '', ticker: '', desde: '', hasta: '', status: '' };
+            this.load();
+        },
+
+        exportCSV() {
+            if (this.ordenes.length === 0) return;
+            const headers = ['id', 'created_at', 'strategy', 'ticker', 'tipo', 'operacion', 'cantidad', 'precio', 'plazo', 'status', 'error_msg'];
+            const rows = this.ordenes.map(o => headers.map(h => JSON.stringify(o[h] ?? '')).join(','));
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'trades_export.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+    };
+}
+</script>
+{% endblock %}

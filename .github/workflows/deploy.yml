@@ -1,0 +1,119 @@
+# CI/CD Pipeline: Test + Deploy to EC2
+#
+# Triggers on push to main. Runs tests first, then deploys
+# to the EC2 instance via SSH + docker compose.
+#
+# Required secrets:
+#   EC2_SSH_KEY        - Private SSH key for EC2 access
+#   EC2_HOST           - Public IP or hostname of the EC2 instance
+#   DASHBOARD_USER     - Basic auth username for the dashboard
+#   DASHBOARD_PASSWORD - Basic auth password for the dashboard
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # Job 1: Run the test suite
+  # ------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  # ------------------------------------------------------------------
+  # Job 2: Deploy to EC2 (only after tests pass)
+  # ------------------------------------------------------------------
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+    # Only deploy on direct pushes to main, never on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+      - name: Add EC2 host to known_hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH
+        run: |
+          ssh -i ~/.ssh/ec2_key ec2-user@${{ secrets.EC2_HOST }} << 'DEPLOY_SCRIPT'
+            set -e
+
+            cd /opt/trading-bot
+
+            echo "--- Pulling latest code ---"
+            git pull origin main
+
+            echo "--- Building and starting containers ---"
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "--- Container status ---"
+            docker compose -f docker-compose.prod.yml ps
+
+            echo "--- Waiting 10s for startup ---"
+            sleep 10
+
+            echo "--- Recent logs (checking for errors) ---"
+            docker compose -f docker-compose.prod.yml logs --tail=5 trading
+          DEPLOY_SCRIPT
+
+      - name: Post-deploy health check
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            -u "${{ secrets.DASHBOARD_USER }}:${{ secrets.DASHBOARD_PASSWORD }}" \
+            "http://${{ secrets.EC2_HOST }}:9091/api/estado")
+
+          echo "Dashboard responded with HTTP $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error::Health check failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/ec2_key

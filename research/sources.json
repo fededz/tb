@@ -1,0 +1,52 @@
+{
+  "accounts": [
+    {
+      "username": "LuisCaputoAR",
+      "nombre": "Luis Caputo — Ministro de Economía",
+      "afinidad_mercado": "pro",
+      "peso": 1.0,
+      "ventana_medicion_min": 30,
+      "notas": "Impacto directo y en la dirección esperada. Alta correlación con movimiento de bonos y tipo de cambio."
+    },
+    {
+      "username": "BancoCentral_AR",
+      "nombre": "BCRA",
+      "afinidad_mercado": "neutral",
+      "peso": 1.0,
+      "ventana_medicion_min": 15,
+      "notas": "Comunicados oficiales de tasa y regulación. Impacto inmediato y directo."
+    },
+    {
+      "username": "Kicillof",
+      "nombre": "Axel Kicillof — Gobernador PBA",
+      "afinidad_mercado": "contra",
+      "peso": 0.3,
+      "ventana_medicion_min": 60,
+      "notas": "Oposición al gobierno nacional. Efecto frecuentemente inverso al esperado por el emisor. Declaraciones críticas sobre dólar o inflación suelen generar rally por expectativa de que el gobierno nacional reafirme su postura. Medir en ventana de 60 min para capturar el efecto real."
+    },
+    {
+      "username": "JMilei",
+      "nombre": "Javier Milei — Presidente",
+      "afinidad_mercado": "pro",
+      "peso": 0.8,
+      "ventana_medicion_min": 30,
+      "notas": "Distinguir entre tweets de política económica vs ideológicos/personales. Los económicos mueven mercado, los ideológicos tienen impacto menor. Peso menor a Caputo porque sus declaraciones son más impredecibles."
+    },
+    {
+      "username": "IMFNews",
+      "nombre": "FMI",
+      "afinidad_mercado": "pro",
+      "peso": 1.0,
+      "ventana_medicion_min": 120,
+      "notas": "Alto impacto en bonos soberanos. Medir en ventana larga — el mercado tarda en pricear completamente. Si el mercado ya tenía priceado el acuerdo, el efecto puede revertirse en la segunda hora."
+    },
+    {
+      "username": "MinEconomiaAR",
+      "nombre": "Ministerio de Economía",
+      "afinidad_mercado": "pro",
+      "peso": 0.9,
+      "ventana_medicion_min": 30,
+      "notas": "Comunicados oficiales de política fiscal y económica. Similar a Caputo pero menos personalizado."
+    }
+  ]
+}

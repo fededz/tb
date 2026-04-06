@@ -1,0 +1,22 @@
+# docker-compose.prod.yml — Production compose file for EC2 + RDS
+#
+# This file runs only the trading and dashboard services.
+# PostgreSQL is hosted on AWS RDS — connection details come from .env
+# (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD).
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  trading:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    command: ["uvicorn", "dashboard.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    env_file: .env
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
+    restart: unless-stopped

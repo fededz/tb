@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Estrategias{% endblock %}
+
+{% block content %}
+<div x-data="estrategiasPage()" x-init="init()">
+    <h2 class="text-2xl font-bold text-white mb-6">Estrategias</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <template x-for="est in estrategias" :key="est.nombre">
+            <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-white" x-text="est.nombre_display"></h3>
+                        <p class="text-xs text-slate-500 mt-0.5" x-text="est.bloque + ' | ' + est.frecuencia"></p>
+                    </div>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                          :class="est.estado === 'activa' ? 'bg-emerald-900 text-emerald-300' : est.estado === 'benchmark' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'"
+                          x-text="est.estado === 'activa' ? 'Activa' : est.estado === 'benchmark' ? 'Benchmark' : 'Pausada'"></span>
+                </div>
+
+                <!-- P&L -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <p class="text-xs text-slate-500">P&L Dia</p>
+                        <p class="text-sm font-mono" :class="est.pnl_dia >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(est.pnl_dia)"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500">Ordenes Hoy</p>
+                        <p class="text-sm font-mono text-white" x-text="est.ordenes_hoy"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500">Bloque</p>
+                        <p class="text-sm text-white capitalize" x-text="est.bloque.replace('_', ' ')"></p>
+                    </div>
+                </div>
+
+                <!-- Pause / Reactivate button -->
+                <button @click="toggleEstado(est)"
+                        :disabled="est.loading"
+                        class="w-full py-2 rounded-lg text-sm font-medium transition-colors border"
+                        :class="est.estado === 'activa' ? 'bg-red-900/30 border-red-800 text-red-400 hover:bg-red-900/60' : 'bg-emerald-900/30 border-emerald-800 text-emerald-400 hover:bg-emerald-900/60'">
+                    <span x-show="!est.loading" x-text="est.estado === 'activa' ? 'Pausar' : 'Reactivar'"></span>
+                    <span x-show="est.loading">Procesando...</span>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <p x-show="estrategias.length === 0" class="text-slate-500 mt-8 text-center">Cargando estrategias...</p>
+</div>
+
+<script>
+function estrategiasPage() {
+    return {
+        estrategias: [],
+
+        async init() {
+            await this.load();
+            setInterval(() => this.load(), 30000);
+        },
+
+        async load() {
+            try {
+                const data = await fetchAPI('/api/estrategias');
+                this.estrategias = data.map(e => ({ ...e, loading: false }));
+            } catch (e) {
+                console.error('Error loading estrategias:', e);
+            }
+        },
+
+        async toggleEstado(est) {
+            est.loading = true;
+            const action = est.estado === 'activa' ? 'pausar' : 'reactivar';
+            try {
+                await fetchAPI(`/api/estrategias/${est.nombre}/${action}`, { method: 'POST' });
+                await this.load();
+            } catch (e) {
+                console.error('Error toggling estrategia:', e);
+            }
+            est.loading = false;
+        },
+    };
+}
+</script>
+{% endblock %}

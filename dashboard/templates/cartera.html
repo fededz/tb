@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Cartera{% endblock %}
+
+{% block content %}
+<div x-data="carteraPage()" x-init="init()">
+    <h2 class="text-2xl font-bold text-white mb-6">Cartera</h2>
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">Posiciones Abiertas</p>
+            <p class="text-2xl font-bold text-white" x-text="posiciones.length"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">Valor Total Cartera (ARS)</p>
+            <p class="text-2xl font-bold text-white" x-text="formatCurrency(totalCartera)"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">Estrategias con Posicion</p>
+            <p class="text-2xl font-bold text-white" x-text="Object.keys(grouped).length"></p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Positions grouped by strategy -->
+        <div class="lg:col-span-2 space-y-4">
+            <template x-for="[strategy, positions] in Object.entries(grouped)" :key="strategy">
+                <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                    <h3 class="text-base font-semibold text-white mb-3 capitalize" x-text="strategy.replace('_', ' ')"></h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-slate-400 border-b border-slate-700">
+                                    <th class="pb-2 pr-3">Ticker</th>
+                                    <th class="pb-2 pr-3">Tipo</th>
+                                    <th class="pb-2 pr-3 text-right">Cantidad</th>
+                                    <th class="pb-2 pr-3 text-right">Precio Entrada</th>
+                                    <th class="pb-2 text-right">Valor Posicion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="pos in positions" :key="pos.id">
+                                    <tr class="border-b border-slate-700/50">
+                                        <td class="py-2 pr-3 font-mono text-white" x-text="pos.ticker"></td>
+                                        <td class="py-2 pr-3 text-slate-400" x-text="pos.tipo"></td>
+                                        <td class="py-2 pr-3 text-right font-mono" x-text="pos.cantidad"></td>
+                                        <td class="py-2 pr-3 text-right font-mono" x-text="formatNumber(pos.precio_entrada)"></td>
+                                        <td class="py-2 text-right font-mono text-white" x-text="formatCurrency(pos.cantidad * pos.precio_entrada)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+            <p x-show="posiciones.length === 0" class="text-slate-500 text-center py-8 bg-slate-800 rounded-xl border border-slate-700">Sin posiciones abiertas</p>
+        </div>
+
+        <!-- Pie chart -->
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <h3 class="text-base font-semibold text-white mb-4">Distribucion por Tipo</h3>
+            <div class="relative" style="max-height: 300px;">
+                <canvas id="pieChart"></canvas>
+            </div>
+            <div class="mt-4 space-y-2" x-show="Object.keys(byTipo).length > 0">
+                <template x-for="[tipo, val] in Object.entries(byTipo)" :key="tipo">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400" x-text="tipo"></span>
+                        <span class="text-white font-mono" x-text="formatCurrency(val)"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function carteraPage() {
+    let chartInstance = null;
+    return {
+        posiciones: [],
+        grouped: {},
+        byTipo: {},
+        totalCartera: 0,
+
+        async init() {
+            await this.load();
+            setInterval(() => this.load(), 30000);
+        },
+
+        async load() {
+            try {
+                const estado = await fetchAPI('/api/estado');
+                // Fetch positions from ordenes or use estado data
+                // We need to get positions - let's use the ordenes endpoint filtered
+                const ordenes = await fetchAPI('/api/ordenes');
+                // For now, build mock positions from executed orders or use what we have
+                // The real positions come from the DB positions table
+                // We'll fetch from a custom approach using estado info
+
+                // Since we don't have a direct /api/posiciones endpoint,
+                // we simulate from the estado info. In production, add /api/posiciones.
+                // For demo, show what's available.
+                this.posiciones = [];
+                this.grouped = {};
+                this.byTipo = {};
+                this.totalCartera = 0;
+
+                // Try to infer from ordenes (EXECUTED COMPRA without matching VENTA)
+                const ejecutadas = ordenes.filter(o => o.status === 'EXECUTED');
+                const posMap = {};
+                for (const o of ejecutadas) {
+                    const key = o.strategy + '|' + o.ticker + '|' + o.tipo;
+                    if (!posMap[key]) {
+                        posMap[key] = { id: o.id, ticker: o.ticker, tipo: o.tipo, cantidad: 0, precio_entrada: o.precio || 0, strategy: o.strategy };
+                    }
+                    if (o.operacion === 'COMPRA') {
+                        posMap[key].cantidad += o.cantidad;
+                    } else {
+                        posMap[key].cantidad -= o.cantidad;
+                    }
+                }
+
+                this.posiciones = Object.values(posMap).filter(p => p.cantidad > 0);
+                this.totalCartera = this.posiciones.reduce((s, p) => s + p.cantidad * p.precio_entrada, 0);
+
+                // Group by strategy
+                this.grouped = {};
+                for (const pos of this.posiciones) {
+                    if (!this.grouped[pos.strategy]) this.grouped[pos.strategy] = [];
+                    this.grouped[pos.strategy].push(pos);
+                }
+
+                // Group by tipo
+                this.byTipo = {};
+                for (const pos of this.posiciones) {
+                    const t = pos.tipo || 'Otro';
+                    this.byTipo[t] = (this.byTipo[t] || 0) + pos.cantidad * pos.precio_entrada;
+                }
+
+                this.renderChart();
+            } catch (e) {
+                console.error('Error loading cartera:', e);
+            }
+        },
+
+        renderChart() {
+            const canvas = document.getElementById('pieChart');
+            if (!canvas) return;
+            if (chartInstance) chartInstance.destroy();
+
+            const labels = Object.keys(this.byTipo);
+            const data = Object.values(this.byTipo);
+            const colors = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6366f1'];
+
+            if (labels.length === 0) {
+                labels.push('Sin posiciones');
+                data.push(1);
+            }
+
+            chartInstance = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: '#1e293b',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } },
+                    },
+                },
+            });
+        },
+    };
+}
+</script>
+{% endblock %}

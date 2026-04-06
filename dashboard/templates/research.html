@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Research{% endblock %}
+
+{% block content %}
+<div x-data="researchPage()" x-init="init()">
+    <h2 class="text-2xl font-bold text-white mb-6">Research Agent</h2>
+
+    <!-- Current context -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-2">Riesgo Macro</p>
+            <span class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold"
+                  :class="{
+                      'bg-emerald-900 text-emerald-300 border border-emerald-700': ctx.riesgo_macro === 'bajo',
+                      'bg-yellow-900 text-yellow-300 border border-yellow-700': ctx.riesgo_macro === 'medio',
+                      'bg-orange-900 text-orange-300 border border-orange-700': ctx.riesgo_macro === 'alto',
+                      'bg-red-900 text-red-300 border border-red-700 animate-pulse': ctx.riesgo_macro === 'critico',
+                      'bg-slate-700 text-slate-400': !ctx.riesgo_macro
+                  }"
+                  x-text="(ctx.riesgo_macro || 'sin datos').toUpperCase()"></span>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-2">Sizing Multiplier</p>
+            <p class="text-3xl font-bold text-white" x-text="(ctx.sizing_mult || 1.0) + 'x'"></p>
+            <div class="w-full bg-slate-700 rounded-full h-2 mt-3">
+                <div class="bg-blue-500 h-2 rounded-full transition-all" :style="'width: ' + ((ctx.sizing_mult || 1.0) * 100) + '%'"></div>
+            </div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-2">Sentimiento</p>
+            <p class="text-3xl font-bold"
+               :class="(ctx.sentimiento || 0) > 0 ? 'text-emerald-400' : (ctx.sentimiento || 0) < 0 ? 'text-red-400' : 'text-slate-400'"
+               x-text="ctx.sentimiento !== null && ctx.sentimiento !== undefined ? (ctx.sentimiento > 0 ? '+' : '') + ctx.sentimiento.toFixed(2) : '--'"></p>
+            <p class="text-xs text-slate-500 mt-1">-1.0 (negativo) a +1.0 (positivo)</p>
+        </div>
+    </div>
+
+    <!-- Paused strategies -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 mb-6" x-show="pausadas.length > 0">
+        <h3 class="text-base font-semibold text-white mb-3">Estrategias Pausadas por Research</h3>
+        <div class="flex flex-wrap gap-2">
+            <template x-for="nombre in pausadas" :key="nombre">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-900/50 text-red-300 border border-red-800" x-text="nombre"></span>
+            </template>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 mb-6" x-show="ctx.resumen">
+        <h3 class="text-base font-semibold text-white mb-3">Resumen del Contexto</h3>
+        <p class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap" x-text="ctx.resumen"></p>
+        <p class="text-xs text-slate-500 mt-3" x-text="'Actualizado: ' + (ctx.timestamp || '--')"></p>
+    </div>
+
+    <!-- Events -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 mb-6" x-show="eventos.length > 0">
+        <h3 class="text-base font-semibold text-white mb-3">Eventos Activos</h3>
+        <div class="space-y-3">
+            <template x-for="(ev, i) in eventos" :key="i">
+                <div class="p-3 bg-slate-750 rounded-lg border border-slate-700">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-600 text-slate-300 mr-2" x-text="ev.tipo || 'info'"></span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  :class="ev.severidad === 'alta' ? 'bg-red-900 text-red-300' : ev.severidad === 'media' ? 'bg-yellow-900 text-yellow-300' : 'bg-slate-600 text-slate-300'"
+                                  x-text="ev.severidad || 'baja'"></span>
+                        </div>
+                        <span class="text-xs text-slate-500" x-text="ev.fuente || ''"></span>
+                    </div>
+                    <p class="text-sm text-slate-300 mt-2" x-text="ev.descripcion || ''"></p>
+                    <div class="flex flex-wrap gap-1 mt-2" x-show="ev.impacto && ev.impacto.length > 0">
+                        <template x-for="imp in (ev.impacto || [])" :key="imp">
+                            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded" x-text="imp"></span>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Recent context entries -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <h3 class="text-base font-semibold text-white mb-4">Historial de Contextos</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-400 border-b border-slate-700">
+                        <th class="pb-3 pr-4">Timestamp</th>
+                        <th class="pb-3 pr-4">Riesgo</th>
+                        <th class="pb-3 pr-4 text-right">Sentimiento</th>
+                        <th class="pb-3 pr-4 text-right">Sizing</th>
+                        <th class="pb-3 pr-4 text-right">Fuentes</th>
+                        <th class="pb-3">Resumen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="entry in noticias" :key="entry.id">
+                        <tr class="border-b border-slate-700/50">
+                            <td class="py-2 pr-4 text-xs text-slate-400" x-text="formatTime(entry.timestamp)"></td>
+                            <td class="py-2 pr-4">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-emerald-900 text-emerald-300': entry.riesgo_macro === 'bajo',
+                                          'bg-yellow-900 text-yellow-300': entry.riesgo_macro === 'medio',
+                                          'bg-orange-900 text-orange-300': entry.riesgo_macro === 'alto',
+                                          'bg-red-900 text-red-300': entry.riesgo_macro === 'critico'
+                                      }"
+                                      x-text="entry.riesgo_macro"></span>
+                            </td>
+                            <td class="py-2 pr-4 text-right font-mono" x-text="entry.sentimiento !== null ? entry.sentimiento : '--'"></td>
+                            <td class="py-2 pr-4 text-right font-mono" x-text="entry.sizing_mult + 'x'"></td>
+                            <td class="py-2 pr-4 text-right" x-text="entry.fuentes_count || 0"></td>
+                            <td class="py-2 text-xs text-slate-400 max-w-[300px] truncate" x-text="entry.resumen || '--'"></td>
+                        </tr>
+                    </template>
+                    <tr x-show="noticias.length === 0">
+                        <td colspan="6" class="py-8 text-center text-slate-500">Sin datos del research agent</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function researchPage() {
+    return {
+        ctx: {},
+        pausadas: [],
+        eventos: [],
+        noticias: [],
+
+        async init() {
+            await this.load();
+            setInterval(() => this.load(), 30000);
+        },
+
+        async load() {
+            try {
+                const [ctxRes, notRes] = await Promise.all([
+                    fetchAPI('/api/research/contexto'),
+                    fetchAPI('/api/research/noticias?limit=20'),
+                ]);
+                this.ctx = ctxRes.contexto || {};
+                this.noticias = notRes || [];
+
+                // Parse estrategias_pausadas
+                let ep = this.ctx.estrategias_pausadas;
+                if (typeof ep === 'string') {
+                    try { ep = JSON.parse(ep); } catch(e) { ep = []; }
+                }
+                this.pausadas = Array.isArray(ep) ? ep : [];
+
+                // Parse eventos
+                let ev = this.ctx.eventos;
+                if (typeof ev === 'string') {
+                    try { ev = JSON.parse(ev); } catch(e) { ev = []; }
+                }
+                this.eventos = Array.isArray(ev) ? ev : [];
+            } catch (e) {
+                console.error('Error loading research:', e);
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

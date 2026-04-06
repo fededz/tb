@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Resumen{% endblock %}
+
+{% block content %}
+<div x-data="dashboardIndex()" x-init="init()">
+
+    <!-- Row 1: Capital metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">Capital Total ARS</p>
+            <p class="text-2xl font-bold text-white" x-text="formatCurrency(pnl.capital_fin)">--</p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">P&L Hoy (Nominal)</p>
+            <p class="text-2xl font-bold" :class="pnl.pnl_ars >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(pnl.pnl_ars)">--</p>
+            <p class="text-xs mt-1" :class="pnl.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'" x-text="formatPercent(pnl.pnl_pct)"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">P&L Hoy (Real)</p>
+            <p class="text-2xl font-bold" :class="pnl.pnl_real >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(pnl.pnl_real)">--</p>
+            <p class="text-xs text-slate-500 mt-1">Ajustado por inflacion</p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">P&L Hoy (USD)</p>
+            <p class="text-2xl font-bold" :class="pnl.pnl_usd >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="'USD ' + formatNumber(pnl.pnl_usd)">--</p>
+        </div>
+    </div>
+
+    <!-- Row 2: Performance metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">P&L Mes</p>
+            <p class="text-2xl font-bold" :class="pnlMes.pnl_ars >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(pnlMes.pnl_ars)">--</p>
+            <p class="text-xs mt-1" :class="pnlMes.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'" x-text="formatPercent(pnlMes.pnl_pct)"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">P&L Anual</p>
+            <p class="text-2xl font-bold" :class="pnlAnio.pnl_ars >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(pnlAnio.pnl_ars)">--</p>
+            <p class="text-xs mt-1" :class="pnlAnio.pnl_pct >= 0 ? 'text-emerald-500' : 'text-red-500'" x-text="formatPercent(pnlAnio.pnl_pct)"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">Benchmark</p>
+            <p class="text-2xl font-bold text-white" x-text="benchmark.instrumento || '--'">--</p>
+            <p class="text-xs text-slate-500 mt-1" x-text="'Inflacion est: ' + formatPercent(benchmark.inflacion_anual_estimada * 100)"></p>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <p class="text-sm text-slate-400 mb-1">vs Benchmark</p>
+            <div class="mt-2">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                      :class="semaforoBenchmark === 'verde' ? 'bg-emerald-900 text-emerald-300' : semaforoBenchmark === 'amarillo' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'"
+                      x-text="semaforoBenchmark === 'verde' ? 'Supera +5%' : semaforoBenchmark === 'amarillo' ? 'Supera <5%' : 'No supera'">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle sections -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Capital distribution -->
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <h3 class="text-lg font-semibold text-white mb-4">Distribucion de Capital</h3>
+            <template x-if="perfil">
+                <div class="space-y-4">
+                    <template x-for="bloque in bloques" :key="bloque.nombre">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-slate-300" x-text="bloque.label"></span>
+                                <span class="text-slate-400" x-text="formatPercent(bloque.pct * 100)"></span>
+                            </div>
+                            <div class="w-full bg-slate-700 rounded-full h-3">
+                                <div class="h-3 rounded-full transition-all duration-500"
+                                     :class="bloque.color"
+                                     :style="'width: ' + (bloque.pct * 100) + '%'"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <div class="mt-4 pt-4 border-t border-slate-700" x-show="contexto">
+                <p class="text-sm text-slate-400">Riesgo macro:
+                    <span class="font-medium"
+                          :class="{ 'text-emerald-400': contexto?.riesgo_macro === 'bajo', 'text-yellow-400': contexto?.riesgo_macro === 'medio', 'text-orange-400': contexto?.riesgo_macro === 'alto', 'text-red-400': contexto?.riesgo_macro === 'critico' }"
+                          x-text="contexto?.riesgo_macro || '--'"></span>
+                </p>
+                <p class="text-sm text-slate-400 mt-1">Sizing multiplier:
+                    <span class="font-medium text-white" x-text="contexto?.sizing_mult || '1.0'"></span>x
+                </p>
+            </div>
+        </div>
+
+        <!-- Strategies list -->
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <h3 class="text-lg font-semibold text-white mb-4">Estrategias</h3>
+            <div class="space-y-3">
+                <template x-for="est in estrategias" :key="est.nombre">
+                    <div class="flex items-center justify-between py-2 px-3 bg-slate-750 rounded-lg border border-slate-700">
+                        <div>
+                            <p class="text-sm font-medium text-white" x-text="est.nombre_display"></p>
+                            <p class="text-xs text-slate-500" x-text="est.frecuencia"></p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-mono" :class="est.pnl_dia >= 0 ? 'text-emerald-400' : 'text-red-400'" x-text="formatCurrency(est.pnl_dia)"></span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                  :class="est.estado === 'activa' ? 'bg-emerald-900 text-emerald-300' : est.estado === 'benchmark' ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'"
+                                  x-text="est.estado === 'activa' ? 'Activa' : est.estado === 'benchmark' ? 'Benchmark' : 'Pausada'"></span>
+                        </div>
+                    </div>
+                </template>
+                <p x-show="estrategias.length === 0" class="text-sm text-slate-500">Sin datos de estrategias</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last trades table -->
+    <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <h3 class="text-lg font-semibold text-white mb-4">Ultimos Trades</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-400 border-b border-slate-700">
+                        <th class="pb-3 pr-4">Hora</th>
+                        <th class="pb-3 pr-4">Estrategia</th>
+                        <th class="pb-3 pr-4">Ticker</th>
+                        <th class="pb-3 pr-4">Operacion</th>
+                        <th class="pb-3 pr-4 text-right">Cantidad</th>
+                        <th class="pb-3 pr-4 text-right">Precio</th>
+                        <th class="pb-3 text-right">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="orden in ordenes" :key="orden.id">
+                        <tr class="border-b border-slate-700/50 hover:bg-slate-750">
+                            <td class="py-2 pr-4 text-slate-400 text-xs" x-text="formatTime(orden.created_at)"></td>
+                            <td class="py-2 pr-4" x-text="orden.strategy"></td>
+                            <td class="py-2 pr-4 font-mono text-white" x-text="orden.ticker"></td>
+                            <td class="py-2 pr-4">
+                                <span :class="orden.operacion === 'COMPRA' ? 'text-emerald-400' : 'text-red-400'" x-text="orden.operacion"></span>
+                            </td>
+                            <td class="py-2 pr-4 text-right font-mono" x-text="orden.cantidad"></td>
+                            <td class="py-2 pr-4 text-right font-mono" x-text="orden.precio ? formatNumber(orden.precio) : 'MKT'"></td>
+                            <td class="py-2 text-right">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                      :class="orden.status === 'EXECUTED' ? 'bg-emerald-900 text-emerald-300' : orden.status === 'PENDING' ? 'bg-blue-900 text-blue-300' : orden.status === 'CANCELLED' ? 'bg-slate-700 text-slate-400' : 'bg-red-900 text-red-300'"
+                                      x-text="orden.status"></span>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="ordenes.length === 0">
+                        <td colspan="7" class="py-8 text-center text-slate-500">Sin trades hoy</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function dashboardIndex() {
+    return {
+        pnl: { pnl_ars: 0, pnl_usd: 0, pnl_pct: 0, pnl_real: 0, capital_fin: 0 },
+        pnlMes: { pnl_ars: 0, pnl_pct: 0 },
+        pnlAnio: { pnl_ars: 0, pnl_pct: 0 },
+        benchmark: {},
+        perfil: null,
+        contexto: null,
+        estrategias: [],
+        ordenes: [],
+        bloques: [],
+        semaforoBenchmark: 'rojo',
+
+        async init() {
+            await this.loadData();
+            setInterval(() => this.loadData(), 30000);
+        },
+
+        async loadData() {
+            try {
+                const [pnlDia, pnlMes, pnlAnio, bench, perfilRes, ctxRes, estRes, ordRes] = await Promise.all([
+                    fetchAPI('/api/pnl?periodo=dia'),
+                    fetchAPI('/api/pnl?periodo=mes'),
+                    fetchAPI('/api/pnl?periodo=anio'),
+                    fetchAPI('/api/benchmark/actual'),
+                    fetchAPI('/api/perfil/actual'),
+                    fetchAPI('/api/research/contexto'),
+                    fetchAPI('/api/estrategias'),
+                    fetchAPI('/api/ordenes'),
+                ]);
+
+                this.pnl = pnlDia;
+                this.pnlMes = pnlMes;
+                this.pnlAnio = pnlAnio;
+                this.benchmark = bench;
+                this.perfil = perfilRes.perfil;
+                this.contexto = ctxRes.contexto;
+                this.estrategias = estRes;
+                this.ordenes = (ordRes || []).slice(0, 10);
+
+                // Build bloques from perfil
+                if (this.perfil) {
+                    this.bloques = [
+                        { nombre: 'benchmark', label: 'Benchmark', pct: this.perfil.benchmark_pct || 0, color: 'bg-blue-500' },
+                        { nombre: 'carry', label: 'Carry', pct: this.perfil.carry_pct || 0, color: 'bg-emerald-500' },
+                        { nombre: 'tendencia', label: 'Tendencia', pct: this.perfil.tendencia_pct || 0, color: 'bg-purple-500' },
+                        { nombre: 'relative_value', label: 'Relative Value', pct: this.perfil.relative_value_pct || 0, color: 'bg-orange-500' },
+                    ];
+                } else if (perfilRes.presets) {
+                    // Use moderado as default display
+                    const mod = perfilRes.presets.moderado || {};
+                    this.bloques = [
+                        { nombre: 'benchmark', label: 'Benchmark', pct: mod.benchmark_pct || 0.4, color: 'bg-blue-500' },
+                        { nombre: 'carry', label: 'Carry', pct: mod.carry_pct || 0.25, color: 'bg-emerald-500' },
+                        { nombre: 'tendencia', label: 'Tendencia', pct: mod.tendencia_pct || 0.25, color: 'bg-purple-500' },
+                        { nombre: 'relative_value', label: 'Relative Value', pct: mod.relative_value_pct || 0.1, color: 'bg-orange-500' },
+                    ];
+                }
+
+                // Semaforo benchmark
+                const anualPct = this.pnlAnio.pnl_pct || 0;
+                const benchRate = (this.benchmark.inflacion_anual_estimada || 0.35) * 100;
+                if (anualPct > benchRate + 5) {
+                    this.semaforoBenchmark = 'verde';
+                } else if (anualPct > benchRate) {
+                    this.semaforoBenchmark = 'amarillo';
+                } else {
+                    this.semaforoBenchmark = 'rojo';
+                }
+            } catch (e) {
+                console.error('Error loading dashboard data:', e);
+            }
+        },
+    };
+}
+</script>
+{% endblock %}
