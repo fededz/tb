@@ -73,13 +73,9 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
 
-      - name: Add EC2 host to known_hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
-
       - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/ec2_key ec2-user@${{ secrets.EC2_HOST }} << 'DEPLOY_SCRIPT'
+          ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'DEPLOY_SCRIPT'
             set -e
 
             cd /opt/trading-bot
