@@ -13,11 +13,14 @@ from __future__ import annotations
 import httpx
 import structlog
 
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_MIN_PRIORITY
 
 logger = structlog.get_logger(__name__)
 
 TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/sendMessage"
+
+# Orden de prioridades de menor a mayor
+_PRIORITY_LEVELS = {"baja": 0, "media": 1, "alta": 2, "critica": 3}
 
 
 class Alertas:
@@ -31,16 +34,27 @@ class Alertas:
         """
         self._token: str = TELEGRAM_BOT_TOKEN
         self._chat_id: str = TELEGRAM_CHAT_ID
-        self._enabled: bool = bool(self._token and self._chat_id)
+        self._min_priority: str = TELEGRAM_MIN_PRIORITY.lower()
+        self._enabled: bool = bool(
+            self._token and self._chat_id and self._min_priority != "off"
+        )
         self._url: str = TELEGRAM_API_URL.format(token=self._token)
 
-        if self._enabled:
-            logger.info("alertas.telegram_habilitado", chat_id=self._chat_id)
+        if self._min_priority == "off":
+            logger.info("alertas.telegram_deshabilitado", motivo="TELEGRAM_MIN_PRIORITY=off")
+        elif self._enabled:
+            logger.info("alertas.telegram_habilitado", chat_id=self._chat_id, min_priority=self._min_priority)
         else:
             logger.warning(
                 "alertas.telegram_deshabilitado",
                 motivo="TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados",
             )
+
+    def _should_send(self, priority: str) -> bool:
+        """Verifica si la prioridad del mensaje supera el minimo configurado."""
+        msg_level = _PRIORITY_LEVELS.get(priority.lower(), 1)
+        min_level = _PRIORITY_LEVELS.get(self._min_priority, 1)
+        return msg_level >= min_level
 
     def send(self, message: str, priority: str = "media") -> None:
         """Envia un mensaje por Telegram.
@@ -53,11 +67,11 @@ class Alertas:
             message: Texto del mensaje (soporta formato HTML de Telegram).
             priority: Nivel de prioridad (baja, media, alta, critica).
         """
-        if not self._enabled:
+        if not self._enabled or not self._should_send(priority):
             logger.info(
                 "alertas.mensaje_local",
                 priority=priority,
-                message=message,
+                message=message[:100],
             )
             return
 

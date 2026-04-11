@@ -29,6 +29,8 @@ def get_db_url() -> str:
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+# Nivel minimo de alerta para enviar por Telegram: off | critica | alta | media | baja
+TELEGRAM_MIN_PRIORITY: str = os.getenv("TELEGRAM_MIN_PRIORITY", "media")
 
 # --- Risk ---
 MAX_CAPITAL_POR_OPERACION_PCT: float = float(os.getenv("MAX_CAPITAL_POR_OPERACION_PCT", "0.05"))
